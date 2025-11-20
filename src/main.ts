@@ -3,10 +3,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { PlatformEnvironment } from './PlatformEnvironment.js';
 import { NeRFLoader } from './NeRFLoader.js';
 import { SceneManager } from './SceneManager.js';
+import { UIManager } from './UIManager.js';
 
 /**
- * MemoryBlocks - Stage 5: Narrative Scene Management
- * Local metadata-driven scene navigation system
+ * MemoryBlocks - Stage 6: 3D UI Integration
+ * Interactive controls for scene navigation and environment tweaks
  */
 
 // Scene setup
@@ -59,12 +60,20 @@ platformEnvironment.timeOfDay = 14; // 2 PM
 const nerfLoader = new NeRFLoader(scene);
 const sceneManager = new SceneManager(nerfLoader);
 
-// Test content: Axes helper (for reference)
+// Initialize UI controls
+const uiManager = new UIManager(sceneManager, platformEnvironment, nerfLoader, {
+  title: 'MemoryBlocks Controls',
+  width: 320,
+  left: '20px',
+  top: '20px'
+});
+
+// Test content: Axes helper (for reference, can be removed)
 const axesHelper = new THREE.AxesHelper(20);
 scene.add(axesHelper);
 
 /**
- * Navigation functions
+ * Helper functions (also available via UI)
  */
 async function loadScene(indexOrId: number | string) {
   if (typeof indexOrId === 'number') {
@@ -72,14 +81,6 @@ async function loadScene(indexOrId: number | string) {
   } else {
     await sceneManager.loadSceneById(indexOrId);
   }
-}
-
-async function nextScene() {
-  await sceneManager.loadNextScene();
-}
-
-async function prevScene() {
-  await sceneManager.loadPreviousScene();
 }
 
 function listScenes() {
@@ -92,10 +93,8 @@ function listScenes() {
   console.log(`\nTotal: ${scenes.length} scenes\n`);
 }
 
-// Expose navigation functions to window
+// Expose helper functions to window
 (window as any).loadScene = loadScene;
-(window as any).nextScene = nextScene;
-(window as any).prevScene = prevScene;
 (window as any).listScenes = listScenes;
 
 // Handle window resize
@@ -115,17 +114,20 @@ function animate() {
 
 animate();
 
-console.log('MemoryBlocks initialized - Stage 5 complete: Narrative scene management ready');
-console.log('\n=== Navigation Commands ===');
+console.log('MemoryBlocks initialized - Stage 6 complete: 3D UI controls active');
+console.log('\n=== UI Controls ===');
+console.log('Use the control panel on the left to:');
+console.log('  - Navigate between scenes');
+console.log('  - Adjust time of day');
+console.log('  - Transform models (scale, offset)');
+console.log('\n=== Console Commands ===');
 console.log('  listScenes()     - Show all available scenes');
-console.log('  loadScene(0)     - Load scene by index');
-console.log('  loadScene("id")  - Load scene by ID');
-console.log('  nextScene()      - Load next scene');
-console.log('  prevScene()      - Load previous scene');
-console.log('\nTry: listScenes() to see all available scenes\n');
+console.log('  loadScene(n)     - Load scene by index');
+console.log('\nInteract with the UI panel to explore the narrative!\n');
 
 // Expose to window for testing
 (window as any).platformEnvironment = platformEnvironment;
 (window as any).nerfLoader = nerfLoader;
 (window as any).sceneManager = sceneManager;
+(window as any).uiManager = uiManager;
 (window as any).scene = scene;
