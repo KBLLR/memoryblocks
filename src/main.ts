@@ -32,6 +32,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// Enable clipping for platform boundaries
+renderer.localClippingEnabled = true;
 
 const appElement = document.getElementById('app');
 if (appElement) {
@@ -45,10 +47,14 @@ controls.dampingFactor = 0.05;
 controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent camera going below ground
 controls.target.set(0, 0, 0);
 
+// Platform configuration
+const PLATFORM_SIZE = 60;
+const PLATFORM_HEIGHT = 1.5;
+
 // Initialize platform environment
 const platformEnvironment = new PlatformEnvironment(scene, {
-  size: 60,
-  height: 1.5,
+  size: PLATFORM_SIZE,
+  height: PLATFORM_HEIGHT,
   color: 0x8b7355,
   roughness: 0.9
 });
@@ -56,8 +62,12 @@ const platformEnvironment = new PlatformEnvironment(scene, {
 // Set initial time to afternoon for nice lighting
 platformEnvironment.timeOfDay = 14; // 2 PM
 
-// Initialize NeRF loader and scene manager
-const nerfLoader = new NeRFLoader(scene);
+// Initialize NeRF loader with platform constraints
+const nerfLoader = new NeRFLoader(scene, {
+  size: PLATFORM_SIZE,
+  height: PLATFORM_HEIGHT,
+  surfaceY: 0  // Platform top surface is at Y=0
+});
 const sceneManager = new SceneManager(nerfLoader);
 
 // Initialize UI controls
@@ -110,16 +120,23 @@ function animate() {
 
 animate();
 
-console.log('MemoryBlocks initialized - Stage 6 complete: 3D UI controls active');
-console.log('\n=== UI Controls ===');
-console.log('Use the control panel on the left to:');
-console.log('  - Navigate between scenes');
-console.log('  - Adjust time of day');
-console.log('  - Transform models (scale, offset)');
-console.log('\n=== Console Commands ===');
-console.log('  listScenes()     - Show all available scenes');
-console.log('  loadScene(n)     - Load scene by index');
-console.log('\nInteract with the UI panel to explore the narrative!\n');
+console.log('\n🎮 MemoryBlocks - Geospatial NeRF Viewer Initialized');
+console.log('═══════════════════════════════════════════════════\n');
+console.log('✅ Platform: 60x60m with dynamic sky');
+console.log('✅ Clipping: Models constrained to platform boundaries');
+console.log('✅ Positioning: All models sit on platform surface (Y=0)');
+console.log('✅ UI: Interactive controls loaded');
+console.log('\n📋 UI Controls (left panel):');
+console.log('  • Scene selector dropdown - Choose from all available scenes');
+console.log('  • Previous/Next buttons - Navigate sequentially');
+console.log('  • Time slider - Adjust day/night cycle (0-24 hours)');
+console.log('  • Model adjustments - Scale and vertical offset');
+console.log('\n💻 Console Commands:');
+console.log('  listScenes()     - Show all available scenes with details');
+console.log('  loadScene(n)     - Load scene by index (0-based)');
+console.log('  loadScene("id")  - Load scene by ID string');
+console.log('\n📍 Scene list has been populated dynamically from scenes.ts');
+console.log('   Check the UI dropdown or run listScenes() to see all scenes.\n');
 
 // Expose to window for testing
 (window as any).platformEnvironment = platformEnvironment;

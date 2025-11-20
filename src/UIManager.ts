@@ -75,11 +75,18 @@ export class UIManager {
     const scenes = this.sceneManager.getAllScenes();
     const sceneNames = scenes.map((s, i) => `${i}: ${s.title}`);
 
+    console.log(`\n=== Scene List Initialized ===`);
+    console.log(`Total scenes available: ${scenes.length}`);
+    scenes.forEach((scene, i) => {
+      console.log(`  [${i}] ${scene.id}: ${scene.title}`);
+    });
+    console.log(`==============================\n`);
+
     this.gui.add('group', { name: 'Scene Navigation', open: true });
 
-    // Scene selector
+    // Scene selector dropdown
     this.gui.add('list', {
-      name: 'Current Scene',
+      name: 'Select Scene',
       list: sceneNames,
       value: sceneNames[0]
     }).onChange((value: string) => {
@@ -234,7 +241,7 @@ export class UIManager {
     const index = this.state.currentScene;
     if (index >= 0 && index < scenes.length) {
       const sceneLabel = `${index}: ${scenes[index].title}`;
-      this.gui.setVal('Current Scene', sceneLabel);
+      this.gui.setVal('Select Scene', sceneLabel);
     }
   }
 

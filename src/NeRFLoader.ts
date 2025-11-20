@@ -17,18 +17,54 @@ export interface NeRFModelOptions {
   location?: GeoLocation;
 }
 
+export interface PlatformConstraints {
+  size: number;
+  height: number;
+  surfaceY: number;
+}
+
 export class NeRFLoader {
   private scene: THREE.Scene;
   private currentModel: LumaSplatsThree | null = null;
   private modelContainer: THREE.Group;
   private geoManager: GeoSpatialManager;
+  private platformConstraints: PlatformConstraints;
+  private clipPlanes: THREE.Plane[];
 
-  constructor(scene: THREE.Scene, geoManager?: GeoSpatialManager) {
+  constructor(
+    scene: THREE.Scene,
+    platformConstraints?: PlatformConstraints,
+    geoManager?: GeoSpatialManager
+  ) {
     this.scene = scene;
     this.geoManager = geoManager || new GeoSpatialManager();
+    this.platformConstraints = platformConstraints || {
+      size: 60,
+      height: 1.5,
+      surfaceY: 0
+    };
+
+    // Create clipping planes for platform boundaries
+    this.clipPlanes = this.createClippingPlanes();
+
     this.modelContainer = new THREE.Group();
     this.modelContainer.name = 'NeRFModelContainer';
     this.scene.add(this.modelContainer);
+  }
+
+  /**
+   * Creates clipping planes for platform boundaries
+   */
+  private createClippingPlanes(): THREE.Plane[] {
+    const halfSize = this.platformConstraints.size / 2;
+    const planes = [
+      new THREE.Plane(new THREE.Vector3(1, 0, 0), halfSize),   // Left wall
+      new THREE.Plane(new THREE.Vector3(-1, 0, 0), halfSize),  // Right wall
+      new THREE.Plane(new THREE.Vector3(0, 0, 1), halfSize),   // Front wall
+      new THREE.Plane(new THREE.Vector3(0, 0, -1), halfSize),  // Back wall
+      new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)           // Floor (platform surface)
+    ];
+    return planes;
   }
 
   /**
@@ -78,26 +114,57 @@ export class NeRFLoader {
 
   /**
    * Positions the model container based on geographic coordinates
+   * Ensures model sits on platform surface (Y=0)
    */
   private positionModelByGeo(location: GeoLocation): void {
     // If this is the first model with a location, set it as the origin
     if (!this.geoManager.getOrigin()) {
       this.geoManager.setOrigin(location);
-      this.modelContainer.position.set(0, location.altitude || 0, 0);
+      // Position at origin, sitting on platform surface
+      this.modelContainer.position.set(0, this.platformConstraints.surfaceY, 0);
       console.log('Set as geospatial origin:', location);
+      console.log('Model positioned at platform surface (Y=0)');
     } else {
       // Convert location to scene coordinates
       const scenePos = this.geoManager.geoToScene(location);
+
+      // Override Y position to sit on platform surface
+      scenePos.y = this.platformConstraints.surfaceY;
+
       this.modelContainer.position.copy(scenePos);
 
       const origin = this.geoManager.getOrigin();
       if (origin) {
         const distance = this.geoManager.calculateDistance(origin, location);
         console.log(
-          `Model positioned at offset: ${scenePos.toArray().map((v) => v.toFixed(2))} (${distance.toFixed(0)}m from origin)`
+          `Model positioned at offset: [${scenePos.x.toFixed(2)}, ${scenePos.y.toFixed(2)}, ${scenePos.z.toFixed(2)}] (${distance.toFixed(0)}m from origin)`
         );
       }
     }
+
+    // Apply clipping planes to the model
+    this.applyClippingPlanes();
+  }
+
+  /**
+   * Applies clipping planes to the current model's materials
+   */
+  private applyClippingPlanes(): void {
+    if (!this.currentModel) return;
+
+    // Apply clipping planes to model materials
+    this.currentModel.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((mat) => {
+          if (mat instanceof THREE.Material) {
+            mat.clippingPlanes = this.clipPlanes;
+            mat.clipIntersection = false;
+            mat.needsUpdate = true;
+          }
+        });
+      }
+    });
   }
 
   /**
