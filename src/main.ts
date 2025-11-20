@@ -68,10 +68,6 @@ const uiManager = new UIManager(sceneManager, platformEnvironment, nerfLoader, {
   top: '20px'
 });
 
-// Test content: Axes helper (for reference, can be removed)
-const axesHelper = new THREE.AxesHelper(20);
-scene.add(axesHelper);
-
 /**
  * Helper functions (also available via UI)
  */
