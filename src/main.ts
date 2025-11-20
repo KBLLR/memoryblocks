@@ -61,31 +61,46 @@ const nerfLoader = new NeRFLoader(scene);
 const axesHelper = new THREE.AxesHelper(20);
 scene.add(axesHelper);
 
-// Sample Luma capture URLs for testing
-// You can load these via console: loadTestNeRF(0), loadTestNeRF(1), etc.
-const sampleCaptureURLs = [
-  'https://lumalabs.ai/capture/ca9ea966-ca24-4ec1-ab0f-af665cb546ff', // Example 1
-  'https://lumalabs.ai/capture/e4c1b5f8-4e0f-4c94-90c3-4d8d8d8d8d8d', // Example 2 (if valid)
+// Sample test data with geolocation
+// Format: { url, location: { latitude, longitude, altitude } }
+const sampleScenes = [
+  {
+    url: 'https://lumalabs.ai/capture/ca9ea966-ca24-4ec1-ab0f-af665cb546ff',
+    name: 'Test Scene 1',
+    location: { latitude: 40.4211, longitude: -3.7101, altitude: 0 }
+  },
+  {
+    url: 'https://lumalabs.ai/capture/e4c1b5f8-4e0f-4c94-90c3-4d8d8d8d8d8d',
+    name: 'Test Scene 2',
+    location: { latitude: 40.4280, longitude: -3.6995, altitude: 0 } // ~800m from first scene
+  }
 ];
 
 /**
- * Test function to load a NeRF model
- * @param index - Index of the sample URL to load
+ * Test function to load a NeRF model with geolocation
+ * @param index - Index of the sample scene to load
+ * @param useLocation - Whether to use geolocation positioning (default: true)
  */
-async function loadTestNeRF(index: number = 0) {
-  const url = sampleCaptureURLs[index];
-  if (!url) {
-    console.error(`No sample URL at index ${index}`);
+async function loadTestNeRF(index: number = 0, useLocation: boolean = true) {
+  const scene = sampleScenes[index];
+  if (!scene) {
+    console.error(`No sample scene at index ${index}`);
     return;
   }
 
   try {
-    console.log(`Loading NeRF from sample ${index}...`);
-    const model = await nerfLoader.loadNeRFModel(url);
+    console.log(`Loading NeRF: ${scene.name}...`);
+
+    const model = await nerfLoader.loadNeRFModel(scene.url, {
+      location: useLocation ? scene.location : undefined
+    });
+
     console.log('NeRF model loaded:', model);
 
-    // Adjust model position if needed
-    nerfLoader.setPosition(0, 0, 0);
+    if (!useLocation) {
+      // If not using geolocation, center it manually
+      nerfLoader.setPosition(0, 0, 0);
+    }
 
   } catch (error) {
     console.error('Failed to load NeRF model:', error);
@@ -112,8 +127,11 @@ function animate() {
 
 animate();
 
-console.log('MemoryBlocks initialized - Stage 3 complete: NeRF loading ready');
-console.log('To test: Run loadTestNeRF(0) in the console to load a sample NeRF model');
+console.log('MemoryBlocks initialized - Stage 4 complete: Geospatial positioning ready');
+console.log('To test:');
+console.log('  - loadTestNeRF(0) - Load first scene at origin');
+console.log('  - loadTestNeRF(1) - Load second scene with offset');
+console.log('  - loadTestNeRF(0, false) - Load without geolocation');
 
 // Expose to window for testing
 (window as any).platformEnvironment = platformEnvironment;
