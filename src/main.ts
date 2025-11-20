@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { PlatformEnvironment } from './PlatformEnvironment.js';
+import { NeRFLoader } from './NeRFLoader.js';
 
 /**
- * MemoryBlocks - Stage 2: Platform Environment Integration
- * Core 3D environment with platform and dynamic sky
+ * MemoryBlocks - Stage 3: NeRF Model Loading
+ * Dynamic Gaussian Splatting NeRF visualization
  */
 
 // Scene setup
@@ -53,22 +54,46 @@ const platformEnvironment = new PlatformEnvironment(scene, {
 // Set initial time to afternoon for nice lighting
 platformEnvironment.timeOfDay = 14; // 2 PM
 
-// Test content: Axes helper (for reference, can be removed later)
+// Initialize NeRF loader
+const nerfLoader = new NeRFLoader(scene);
+
+// Test content: Axes helper (for reference)
 const axesHelper = new THREE.AxesHelper(20);
 scene.add(axesHelper);
 
-// Add a test sphere to verify shadows and lighting
-const testGeometry = new THREE.SphereGeometry(3, 32, 32);
-const testMaterial = new THREE.MeshStandardMaterial({
-  color: 0x4488ff,
-  roughness: 0.5,
-  metalness: 0.2
-});
-const testSphere = new THREE.Mesh(testGeometry, testMaterial);
-testSphere.position.set(0, 3, 0);
-testSphere.castShadow = true;
-testSphere.receiveShadow = true;
-scene.add(testSphere);
+// Sample Luma capture URLs for testing
+// You can load these via console: loadTestNeRF(0), loadTestNeRF(1), etc.
+const sampleCaptureURLs = [
+  'https://lumalabs.ai/capture/ca9ea966-ca24-4ec1-ab0f-af665cb546ff', // Example 1
+  'https://lumalabs.ai/capture/e4c1b5f8-4e0f-4c94-90c3-4d8d8d8d8d8d', // Example 2 (if valid)
+];
+
+/**
+ * Test function to load a NeRF model
+ * @param index - Index of the sample URL to load
+ */
+async function loadTestNeRF(index: number = 0) {
+  const url = sampleCaptureURLs[index];
+  if (!url) {
+    console.error(`No sample URL at index ${index}`);
+    return;
+  }
+
+  try {
+    console.log(`Loading NeRF from sample ${index}...`);
+    const model = await nerfLoader.loadNeRFModel(url);
+    console.log('NeRF model loaded:', model);
+
+    // Adjust model position if needed
+    nerfLoader.setPosition(0, 0, 0);
+
+  } catch (error) {
+    console.error('Failed to load NeRF model:', error);
+  }
+}
+
+// Expose loading function to window for manual testing
+(window as any).loadTestNeRF = loadTestNeRF;
 
 // Handle window resize
 window.addEventListener('resize', () => {
@@ -81,17 +106,16 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
 
-  // Slowly rotate test sphere
-  testSphere.rotation.y += 0.005;
-
   controls.update();
   renderer.render(scene, camera);
 }
 
 animate();
 
-console.log('MemoryBlocks initialized - Stage 2 complete: Platform environment ready');
+console.log('MemoryBlocks initialized - Stage 3 complete: NeRF loading ready');
+console.log('To test: Run loadTestNeRF(0) in the console to load a sample NeRF model');
 
 // Expose to window for testing
 (window as any).platformEnvironment = platformEnvironment;
+(window as any).nerfLoader = nerfLoader;
 (window as any).scene = scene;
