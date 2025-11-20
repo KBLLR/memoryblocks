@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { PlatformEnvironment } from './PlatformEnvironment.js';
 
 /**
- * MemoryBlocks - Stage 1: Basic Three.js Scene Setup
- * Initialize the core rendering infrastructure
+ * MemoryBlocks - Stage 2: Platform Environment Integration
+ * Core 3D environment with platform and dynamic sky
  */
 
 // Scene setup
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // Sky blue for now
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(
@@ -39,40 +39,36 @@ if (appElement) {
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.maxPolarAngle = Math.PI / 2; // Prevent camera going below ground
+controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent camera going below ground
+controls.target.set(0, 0, 0);
 
-// Test content: Axes helper and a cube
+// Initialize platform environment
+const platformEnvironment = new PlatformEnvironment(scene, {
+  size: 60,
+  height: 1.5,
+  color: 0x8b7355,
+  roughness: 0.9
+});
+
+// Set initial time to afternoon for nice lighting
+platformEnvironment.timeOfDay = 14; // 2 PM
+
+// Test content: Axes helper (for reference, can be removed later)
 const axesHelper = new THREE.AxesHelper(20);
 scene.add(axesHelper);
 
-const testGeometry = new THREE.BoxGeometry(5, 5, 5);
+// Add a test sphere to verify shadows and lighting
+const testGeometry = new THREE.SphereGeometry(3, 32, 32);
 const testMaterial = new THREE.MeshStandardMaterial({
-  color: 0x44aa88,
-  roughness: 0.7,
-  metalness: 0.3
+  color: 0x4488ff,
+  roughness: 0.5,
+  metalness: 0.2
 });
-const testCube = new THREE.Mesh(testGeometry, testMaterial);
-testCube.position.y = 2.5; // Sit on ground level
-testCube.castShadow = true;
-testCube.receiveShadow = true;
-scene.add(testCube);
-
-// Basic lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-scene.add(ambientLight);
-
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-directionalLight.position.set(50, 100, 50);
-directionalLight.castShadow = true;
-directionalLight.shadow.camera.near = 0.5;
-directionalLight.shadow.camera.far = 500;
-directionalLight.shadow.camera.left = -100;
-directionalLight.shadow.camera.right = 100;
-directionalLight.shadow.camera.top = 100;
-directionalLight.shadow.camera.bottom = -100;
-directionalLight.shadow.mapSize.width = 2048;
-directionalLight.shadow.mapSize.height = 2048;
-scene.add(directionalLight);
+const testSphere = new THREE.Mesh(testGeometry, testMaterial);
+testSphere.position.set(0, 3, 0);
+testSphere.castShadow = true;
+testSphere.receiveShadow = true;
+scene.add(testSphere);
 
 // Handle window resize
 window.addEventListener('resize', () => {
@@ -85,9 +81,8 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
 
-  // Rotate test cube slowly
-  testCube.rotation.x += 0.005;
-  testCube.rotation.y += 0.01;
+  // Slowly rotate test sphere
+  testSphere.rotation.y += 0.005;
 
   controls.update();
   renderer.render(scene, camera);
@@ -95,4 +90,8 @@ function animate() {
 
 animate();
 
-console.log('MemoryBlocks initialized - Stage 1 complete');
+console.log('MemoryBlocks initialized - Stage 2 complete: Platform environment ready');
+
+// Expose to window for testing
+(window as any).platformEnvironment = platformEnvironment;
+(window as any).scene = scene;
