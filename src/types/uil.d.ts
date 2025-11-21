@@ -9,9 +9,16 @@ declare module 'uil' {
     name?: string;
     w?: number;
     h?: number;
+    maxHeight?: number;
     size?: number;
     center?: boolean;
     mode?: number;
+    parent?: HTMLElement | null;
+    isCanvas?: boolean;
+    close?: boolean;
+    transparent?: boolean;
+    autoWidth?: boolean;
+    fontColor?: string;
     [key: string]: any;
   }
 
@@ -27,14 +34,23 @@ declare module 'uil' {
     height?: number;
     mode?: string;
     open?: boolean;
+    type?: string;
+    w?: number;
+    multiplicator?: number;
+    autoWidth?: boolean;
     [key: string]: any;
   }
 
   export class Gui {
+    canvas: HTMLCanvasElement;
+    onDraw?: () => void;
+
     constructor(options?: GuiOptions);
     add(type: string, options?: ControlOptions): GuiControl;
+    add(settings: any, property: string, options?: ControlOptions): GuiControl;
     setVal(name: string, value: any): void;
     dispose(): void;
+    onChange(callback: (value: string) => void): Gui;
   }
 
   export interface GuiControl {
