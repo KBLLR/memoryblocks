@@ -126,8 +126,8 @@ export class InWorldGUIManager {
    * Initialize terrain GUI controls
    */
   private initializeTerrainGUI(config: InWorldGUIConfig): void {
-    const guiWidth = config.guiWidth || 128 * 5;
-    const guiHeight = config.guiHeight || 148;
+    const guiWidth = config.guiWidth || 128 * 8; // Wider for platform
+    const guiHeight = config.guiHeight || 200;
 
     // Create UIL GUI in canvas mode
     this.terrainGui = new Gui({
@@ -205,8 +205,8 @@ export class InWorldGUIManager {
    * Initialize sky GUI controls
    */
   private initializeSkyGUI(config: InWorldGUIConfig): void {
-    const guiWidth = config.guiWidth || 128 * 5;
-    const guiHeight = config.guiHeight || 148;
+    const guiWidth = config.guiWidth || 128 * 8; // Wider for platform
+    const guiHeight = config.guiHeight || 200;
 
     // Create UIL GUI in canvas mode
     this.skyGui = new Gui({
@@ -287,21 +287,23 @@ export class InWorldGUIManager {
    * Create the terrain GUI plane in 3D space
    */
   private createTerrainPlane(config: InWorldGUIConfig): void {
-    const planeWidth = config.planeWidth || 20;
-    const planeHeight = config.planeHeight || 4.625;
+    const planeWidth = config.planeWidth || 60; // Platform width
+    const planeHeight = config.planeHeight || 8;
 
     const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight, 5, 1);
-    geometry.rotateX(-Math.PI * 0.5);
+    geometry.rotateX(-Math.PI * 0.5); // Lay flat on ground
 
     const material = new THREE.MeshBasicMaterial({
       map: this.terrainTexture,
       transparent: true,
       side: THREE.DoubleSide,
+      depthWrite: false, // Prevent z-fighting
     });
 
     this.terrainPlane = new THREE.Mesh(geometry, material);
+    // Position at front edge of platform, slightly above ground
     this.terrainPlane.position.copy(
-      config.terrainPosition || new THREE.Vector3(0, 0.1, 13)
+      config.terrainPosition || new THREE.Vector3(0, 0.01, 30)
     );
     this.terrainPlane.name = 'terrain_gui';
 
@@ -312,20 +314,23 @@ export class InWorldGUIManager {
    * Create the sky GUI plane in 3D space
    */
   private createSkyPlane(config: InWorldGUIConfig): void {
-    const planeWidth = config.planeWidth || 20;
-    const planeHeight = config.planeHeight || 4.625;
+    const planeWidth = config.planeWidth || 60; // Platform width
+    const planeHeight = config.planeHeight || 8;
 
     const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight, 5, 1);
+    geometry.rotateX(-Math.PI * 0.5); // Lay flat on ground
 
     const material = new THREE.MeshBasicMaterial({
       map: this.skyTexture,
       transparent: true,
       side: THREE.DoubleSide,
+      depthWrite: false, // Prevent z-fighting
     });
 
     this.skyPlane = new THREE.Mesh(geometry, material);
+    // Position at back edge of platform, slightly above ground
     this.skyPlane.position.copy(
-      config.skyPosition || new THREE.Vector3(0, 5, -13)
+      config.skyPosition || new THREE.Vector3(0, 0.01, -30)
     );
     this.skyPlane.name = 'sky_gui';
 
