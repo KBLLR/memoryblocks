@@ -70,12 +70,13 @@ const nerfLoader = new NeRFLoader(scene, {
 });
 const sceneManager = new SceneManager(nerfLoader);
 
-// Initialize UI controls
+// Initialize UI controls with camera and renderer for enhanced controls
 const uiManager = new UIManager(sceneManager, platformEnvironment, nerfLoader, {
   title: 'MemoryBlocks Controls',
-  width: 320,
   left: '20px',
-  top: '20px'
+  top: '20px',
+  camera: camera,
+  renderer: renderer
 });
 
 /**
