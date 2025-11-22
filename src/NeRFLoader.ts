@@ -106,10 +106,74 @@ export class NeRFLoader {
       this.positionModelByGeo(location);
     }
 
+    // Wait for model to load and then auto-scale if needed
+    this.waitForModelAndAutoScale(splat);
+
     console.log('NeRF model loading initiated');
 
     // Return the splat object immediately - Luma handles async loading internally
     return Promise.resolve(splat);
+  }
+
+  /**
+   * Waits for the model to load and automatically scales it to fit the platform if needed
+   */
+  private async waitForModelAndAutoScale(splat: LumaSplatsThree): Promise<void> {
+    // Wait for the model to have geometry by polling
+    const maxAttempts = 100; // ~10 seconds max wait
+    let attempts = 0;
+
+    const checkLoaded = async (): Promise<boolean> => {
+      // Check if the splat has children with geometry
+      let hasGeometry = false;
+      splat.traverse((child) => {
+        if (child instanceof THREE.Mesh || (child as any).geometry) {
+          hasGeometry = true;
+        }
+      });
+      return hasGeometry;
+    };
+
+    // Poll until loaded or timeout
+    while (attempts < maxAttempts) {
+      const loaded = await checkLoaded();
+      if (loaded) {
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    if (attempts >= maxAttempts) {
+      console.warn('Model loading timeout - skipping auto-scale');
+      return;
+    }
+
+    // Calculate bounding box
+    const box = new THREE.Box3().setFromObject(splat);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+
+    // Check if model exceeds platform bounds (with some margin)
+    const platformSize = this.platformConstraints.size;
+    const maxDimension = Math.max(size.x, size.z); // Only check horizontal dimensions
+    const margin = 0.9; // Use 90% of platform size to leave some space
+
+    if (maxDimension > platformSize * margin) {
+      const scaleFactor = (platformSize * margin) / maxDimension;
+      this.modelContainer.scale.multiplyScalar(scaleFactor);
+
+      console.log(`Model auto-scaled by ${scaleFactor.toFixed(3)}x to fit platform`);
+      console.log(`Original size: [${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)}]`);
+      console.log(`Platform size: ${platformSize.toFixed(2)}`);
+    } else {
+      console.log(`Model fits within platform bounds`);
+      console.log(`Model size: [${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)}]`);
+      console.log(`Platform size: ${platformSize.toFixed(2)}`);
+    }
+
+    // Re-apply clipping planes after scaling
+    this.applyClippingPlanes();
   }
 
   /**

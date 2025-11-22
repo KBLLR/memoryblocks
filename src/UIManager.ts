@@ -44,6 +44,14 @@ export class UIManager {
   private controlRefs: any[] = [];
   private resizeHandler?: () => void;
 
+  // Control references for programmatic updates
+  private controls: {
+    sceneSelector?: GuiControl;
+    infoDisplay?: GuiControl;
+    scaleSlider?: GuiControl;
+    yOffsetSlider?: GuiControl;
+  } = {};
+
   // UI state
   private state = {
     currentScene: 0,
@@ -152,7 +160,7 @@ export class UIManager {
     this.gui.add('group', { name: 'Scene Navigation', open: true });
 
     // Scene selector dropdown
-    this.gui.add('list', {
+    this.controls.sceneSelector = this.gui.add('list', {
       name: 'Select Scene',
       list: sceneNames,
       value: sceneNames[0]
@@ -179,7 +187,7 @@ export class UIManager {
     });
 
     // Info display
-    this.gui.add('string', {
+    this.controls.infoDisplay = this.gui.add('string', {
       name: 'Info',
       value: 'Select a scene to begin',
       height: 60,
@@ -511,7 +519,7 @@ export class UIManager {
    */
   private updateSceneInfo(): void {
     const current = this.sceneManager.getCurrentScene();
-    if (current) {
+    if (current && this.controls.infoDisplay) {
       const info = `${current.title}\n\n${current.description || 'No description'}`;
       this.gui.setVal('Info', info);
 
@@ -530,9 +538,9 @@ export class UIManager {
   private updateSceneSelector(): void {
     const scenes = this.sceneManager.getAllScenes();
     const index = this.state.currentScene;
-    if (index >= 0 && index < scenes.length) {
+    if (index >= 0 && index < scenes.length && this.controls.sceneSelector) {
       const sceneLabel = `${index}: ${scenes[index].title}`;
-      this.gui.setVal('Select Scene', sceneLabel);
+      this.controls.sceneSelector.setValue(sceneLabel);
     }
   }
 
