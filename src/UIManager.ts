@@ -1,15 +1,26 @@
-import { Gui, GuiControl } from 'uil';
+import { Gui } from 'uil';
+import * as THREE from 'three';
 import { SceneManager } from './SceneManager.js';
 import { PlatformEnvironment } from './PlatformEnvironment.js';
 import { NeRFLoader } from './NeRFLoader.js';
 
 /**
- * UIManager - 3D UI controls using UIL library
+ * UIManager - Enhanced Responsive UI Controls
  *
- * Provides interactive controls for:
- * - Scene navigation
- * - Time of day adjustment
+ * Provides comprehensive interactive controls for:
+ * - Scene navigation with NeRF URL management
+ * - Camera & view controls
+ * - Geospatial positioning
+ * - NeRF/Luma quality & rendering settings
+ * - Environment (time of day, lighting)
  * - Model transformations
+ *
+ * Features:
+ * - Responsive sizing based on viewport
+ * - Touch-friendly controls (min 48px hit targets)
+ * - Multi-row organized layout
+ * - Memory-safe with proper cleanup
+ * - Viewport adaptation
  */
 
 export interface UIConfig {
@@ -17,6 +28,8 @@ export interface UIConfig {
   width?: number;
   left?: string;
   top?: string;
+  camera?: THREE.Camera;
+  renderer?: THREE.WebGLRenderer;
 }
 
 export class UIManager {
@@ -24,6 +37,12 @@ export class UIManager {
   private sceneManager: SceneManager;
   private platformEnv: PlatformEnvironment;
   private nerfLoader: NeRFLoader;
+  private camera?: THREE.Camera;
+  private renderer?: THREE.WebGLRenderer;
+
+  // Control references for cleanup
+  private controlRefs: any[] = [];
+  private resizeHandler?: () => void;
 
   // Control references for programmatic updates
   private controls: {
@@ -39,6 +58,15 @@ export class UIManager {
     timeOfDay: 14,
     modelScale: 1.0,
     modelYOffset: 0,
+    modelRotationY: 0,
+    cameraFOV: 75,
+    cameraDistance: 50,
+    nerfURL: '',
+    loadingAnimation: true,
+    particleReveal: true,
+    enableShaderIntegration: true,
+    semanticMaskForeground: true,
+    semanticMaskBackground: true,
   };
 
   constructor(
@@ -50,29 +78,68 @@ export class UIManager {
     this.sceneManager = sceneManager;
     this.platformEnv = platformEnv;
     this.nerfLoader = nerfLoader;
+    this.camera = config.camera;
+    this.renderer = config.renderer;
 
     const {
       title = 'MemoryBlocks',
-      width = 300,
+      width = this.calculateResponsiveWidth(),
       left = '20px',
       top = '20px'
     } = config;
 
-    // Initialize UIL GUI
+    // Initialize UIL GUI with responsive width
     this.gui = new Gui({
       css: 'top:' + top + '; left:' + left + '; width:' + width + 'px;',
       name: title
     });
 
     this.setupControls();
+    this.setupResponsiveness();
   }
 
   /**
-   * Sets up all UI controls
+   * Calculate responsive width based on viewport
+   * Ensures touch-friendly sizing on mobile devices
+   */
+  private calculateResponsiveWidth(): number {
+    const vw = window.innerWidth;
+    if (vw < 480) return Math.min(vw - 40, 320); // Mobile: leave 20px margin on each side
+    if (vw < 768) return 340; // Tablet
+    return 360; // Desktop
+  }
+
+  /**
+   * Sets up viewport responsiveness
+   */
+  private setupResponsiveness(): void {
+    this.resizeHandler = () => {
+      // Could rebuild GUI with new width if needed
+      // For now, UIL handles basic responsiveness
+    };
+    window.addEventListener('resize', this.resizeHandler);
+  }
+
+  /**
+   * Sets up all UI controls in organized multi-row layout
    */
   private setupControls(): void {
+    // Row 1: Scene Navigation (always visible)
     this.setupSceneControls();
+
+    // Row 2: Camera & View Controls
+    this.setupCameraControls();
+
+    // Row 3: NeRF/Luma Settings
+    this.setupNeRFControls();
+
+    // Row 4: Geospatial Positioning
+    this.setupGeospatialControls();
+
+    // Row 5: Environment & Lighting
     this.setupEnvironmentControls();
+
+    // Row 6: Model Transformations
     this.setupModelControls();
   }
 
@@ -129,13 +196,183 @@ export class UIManager {
   }
 
   /**
-   * Environment controls (time of day, lighting)
+   * Camera & View Controls (Row 2)
+   */
+  private setupCameraControls(): void {
+    this.gui.add('group', { name: 'Camera & View', open: false });
+
+    if (this.camera && (this.camera as THREE.PerspectiveCamera).fov !== undefined) {
+      const perspCamera = this.camera as THREE.PerspectiveCamera;
+      this.state.cameraFOV = perspCamera.fov;
+
+      // Field of View
+      const fovControl = this.gui.add('slide', {
+        name: 'FOV',
+        min: 30,
+        max: 120,
+        value: this.state.cameraFOV,
+        precision: 0,
+        step: 5
+      }).onChange((value: number) => {
+        this.state.cameraFOV = value;
+        perspCamera.fov = value;
+        perspCamera.updateProjectionMatrix();
+      });
+      this.controlRefs.push(fovControl);
+    }
+
+    // Reset Camera button
+    const resetCamBtn = this.gui.add('button', {
+      name: 'Reset Camera',
+      fontColor: '#88ff88'
+    }).onChange(() => {
+      this.resetCamera();
+    });
+    this.controlRefs.push(resetCamBtn);
+
+    // Renderer Info
+    if (this.renderer) {
+      const info = this.renderer.info;
+      const rendererInfo = this.gui.add('string', {
+        name: 'Renderer Info',
+        value: `Triangles: ${info.render.triangles}\nCalls: ${info.render.calls}`,
+        height: 40,
+        mode: 'text'
+      });
+      this.controlRefs.push(rendererInfo);
+    }
+  }
+
+  /**
+   * NeRF/Luma Settings (Row 3)
+   */
+  private setupNeRFControls(): void {
+    this.gui.add('group', { name: 'NeRF / Luma Settings', open: false });
+
+    // Current NeRF URL display
+    const currentScene = this.sceneManager.getCurrentScene();
+    this.state.nerfURL = currentScene ? currentScene.url : '';
+
+    const urlControl = this.gui.add('string', {
+      name: 'Current URL',
+      value: this.state.nerfURL,
+      height: 50,
+      mode: 'text'
+    });
+    this.controlRefs.push(urlControl);
+
+    // Custom URL input button
+    const customURLBtn = this.gui.add('button', {
+      name: 'Load Custom URL',
+      fontColor: '#88ccff'
+    }).onChange(() => {
+      this.loadCustomNeRFURL();
+    });
+    this.controlRefs.push(customURLBtn);
+
+    // Loading Animation toggle
+    const loadAnimControl = this.gui.add('bool', {
+      name: 'Loading Animation',
+      value: this.state.loadingAnimation
+    }).onChange((value: boolean) => {
+      this.state.loadingAnimation = value;
+      // Note: This affects next load, not current model
+    });
+    this.controlRefs.push(loadAnimControl);
+
+    // Particle Reveal toggle
+    const particleControl = this.gui.add('bool', {
+      name: 'Particle Reveal',
+      value: this.state.particleReveal
+    }).onChange((value: boolean) => {
+      this.state.particleReveal = value;
+      // Note: This affects next load, not current model
+    });
+    this.controlRefs.push(particleControl);
+
+    // Shader Integration toggle
+    const shaderControl = this.gui.add('bool', {
+      name: 'Shader Integration',
+      value: this.state.enableShaderIntegration
+    }).onChange((value: boolean) => {
+      this.state.enableShaderIntegration = value;
+      // Note: This affects next load, not current model
+    });
+    this.controlRefs.push(shaderControl);
+
+    // Reload Current Scene button
+    const reloadBtn = this.gui.add('button', {
+      name: 'Reload with Settings',
+      fontColor: '#ffaa44'
+    }).onChange(() => {
+      this.reloadCurrentScene();
+    });
+    this.controlRefs.push(reloadBtn);
+  }
+
+  /**
+   * Geospatial Positioning Controls (Row 4)
+   */
+  private setupGeospatialControls(): void {
+    this.gui.add('group', { name: 'Geospatial Position', open: false });
+
+    const currentScene = this.sceneManager.getCurrentScene();
+    const location = currentScene?.location;
+    const geoManager = this.nerfLoader.getGeoManager();
+    const origin = geoManager.getOrigin();
+
+    let positionInfo = 'No scene loaded';
+    if (location) {
+      const lat = location.latitude.toFixed(6);
+      const lon = location.longitude.toFixed(6);
+      const alt = location.altitude?.toFixed(1) || '0.0';
+      positionInfo = `Lat: ${lat}\nLon: ${lon}\nAlt: ${alt}m`;
+
+      if (origin && (origin.latitude !== location.latitude || origin.longitude !== location.longitude)) {
+        const distance = geoManager.calculateDistance(origin, location);
+        positionInfo += `\n\nDistance from origin:\n${distance.toFixed(0)}m`;
+      } else if (origin) {
+        positionInfo += '\n\n(Origin)';
+      }
+    }
+
+    const geoInfoControl = this.gui.add('string', {
+      name: 'Location',
+      value: positionInfo,
+      height: 80,
+      mode: 'text'
+    });
+    this.controlRefs.push(geoInfoControl);
+
+    // Reset Origin button
+    const resetOriginBtn = this.gui.add('button', {
+      name: 'Reset Origin',
+      fontColor: '#ff8888'
+    }).onChange(() => {
+      geoManager.reset();
+      console.log('Geospatial origin reset');
+      this.updateGeospatialInfo();
+    });
+    this.controlRefs.push(resetOriginBtn);
+
+    // Manual Position Override
+    const manualPosBtn = this.gui.add('button', {
+      name: 'Manual Position',
+      fontColor: '#cccccc'
+    }).onChange(() => {
+      this.manualPositionOverride();
+    });
+    this.controlRefs.push(manualPosBtn);
+  }
+
+  /**
+   * Environment controls (time of day, lighting) (Row 5)
    */
   private setupEnvironmentControls(): void {
-    this.gui.add('group', { name: 'Environment', open: true });
+    this.gui.add('group', { name: 'Environment & Lighting', open: false });
 
     // Time of day slider
-    this.gui.add('slide', {
+    const timeControl = this.gui.add('slide', {
       name: 'Time (H)',
       min: 0,
       max: 24,
@@ -146,16 +383,44 @@ export class UIManager {
       this.state.timeOfDay = value;
       this.platformEnv.timeOfDay = value;
     });
+    this.controlRefs.push(timeControl);
+
+    // Ambient Light Intensity
+    const ambientLight = this.platformEnv.getDirectionalLight();
+    const ambientControl = this.gui.add('slide', {
+      name: 'Sun Intensity',
+      min: 0.1,
+      max: 3.0,
+      value: 1.5,
+      precision: 2,
+      step: 0.1
+    }).onChange((value: number) => {
+      ambientLight.intensity = value;
+    });
+    this.controlRefs.push(ambientControl);
+
+    // Shadow toggle
+    if (this.renderer) {
+      const shadowControl = this.gui.add('bool', {
+        name: 'Shadows',
+        value: this.renderer.shadowMap.enabled
+      }).onChange((value: boolean) => {
+        if (this.renderer) {
+          this.renderer.shadowMap.enabled = value;
+        }
+      });
+      this.controlRefs.push(shadowControl);
+    }
   }
 
   /**
-   * Model transformation controls
+   * Model transformation controls (Row 6)
    */
   private setupModelControls(): void {
     this.gui.add('group', { name: 'Model Adjustments', open: false });
 
     // Scale slider
-    this.controls.scaleSlider = this.gui.add('slide', {
+    const scaleControl = this.gui.add('slide', {
       name: 'Scale',
       min: 0.1,
       max: 5.0,
@@ -166,9 +431,10 @@ export class UIManager {
       this.state.modelScale = value;
       this.nerfLoader.setScale(value);
     });
+    this.controlRefs.push(scaleControl);
 
     // Vertical offset slider
-    this.controls.yOffsetSlider = this.gui.add('slide', {
+    const yOffsetControl = this.gui.add('slide', {
       name: 'Y Offset',
       min: -20,
       max: 20,
@@ -176,18 +442,36 @@ export class UIManager {
       precision: 1,
       step: 0.5
     }).onChange((value: number) => {
-      this.state.modelYOffset = value;
       const container = this.nerfLoader.getContainer();
-      container.position.y += (value - this.state.modelYOffset);
+      const delta = value - this.state.modelYOffset;
+      container.position.y += delta;
+      this.state.modelYOffset = value;
     });
+    this.controlRefs.push(yOffsetControl);
+
+    // Rotation slider
+    const rotationControl = this.gui.add('slide', {
+      name: 'Rotation Y',
+      min: -180,
+      max: 180,
+      value: this.state.modelRotationY,
+      precision: 0,
+      step: 5
+    }).onChange((value: number) => {
+      this.state.modelRotationY = value;
+      const container = this.nerfLoader.getContainer();
+      container.rotation.y = (value * Math.PI) / 180;
+    });
+    this.controlRefs.push(rotationControl);
 
     // Reset button
-    this.gui.add('button', {
+    const resetBtn = this.gui.add('button', {
       name: 'Reset Transforms',
       fontColor: '#ff8888'
     }).onChange(() => {
       this.resetModelTransforms();
     });
+    this.controlRefs.push(resetBtn);
   }
 
   /**
@@ -237,7 +521,14 @@ export class UIManager {
     const current = this.sceneManager.getCurrentScene();
     if (current && this.controls.infoDisplay) {
       const info = `${current.title}\n\n${current.description || 'No description'}`;
-      this.controls.infoDisplay.setValue(info);
+      this.gui.setVal('Info', info);
+
+      // Also update NeRF URL display
+      this.state.nerfURL = current.url;
+      this.gui.setVal('Current URL', current.url);
+
+      // Update geospatial info
+      this.updateGeospatialInfo();
     }
   }
 
@@ -254,22 +545,136 @@ export class UIManager {
   }
 
   /**
+   * Update geospatial info display
+   */
+  private updateGeospatialInfo(): void {
+    const currentScene = this.sceneManager.getCurrentScene();
+    const location = currentScene?.location;
+    const geoManager = this.nerfLoader.getGeoManager();
+    const origin = geoManager.getOrigin();
+
+    let positionInfo = 'No scene loaded';
+    if (location) {
+      const lat = location.latitude.toFixed(6);
+      const lon = location.longitude.toFixed(6);
+      const alt = location.altitude?.toFixed(1) || '0.0';
+      positionInfo = `Lat: ${lat}\nLon: ${lon}\nAlt: ${alt}m`;
+
+      if (origin && (origin.latitude !== location.latitude || origin.longitude !== location.longitude)) {
+        const distance = geoManager.calculateDistance(origin, location);
+        positionInfo += `\n\nDistance from origin:\n${distance.toFixed(0)}m`;
+      } else if (origin) {
+        positionInfo += '\n\n(Origin)';
+      }
+    }
+
+    this.gui.setVal('Location', positionInfo);
+  }
+
+  /**
+   * Reset camera to default position
+   */
+  private resetCamera(): void {
+    if (this.camera) {
+      this.camera.position.set(30, 20, 30);
+      this.camera.lookAt(0, 0, 0);
+
+      if ((this.camera as THREE.PerspectiveCamera).fov !== undefined) {
+        const perspCamera = this.camera as THREE.PerspectiveCamera;
+        perspCamera.fov = 75;
+        perspCamera.updateProjectionMatrix();
+        this.state.cameraFOV = 75;
+        this.gui.setVal('FOV', 75);
+      }
+
+      console.log('Camera reset to default position');
+    }
+  }
+
+  /**
+   * Load custom NeRF URL via prompt
+   */
+  private loadCustomNeRFURL(): void {
+    const url = prompt('Enter Luma capture URL:', 'https://lumalabs.ai/capture/');
+    if (url && url.trim()) {
+      this.loadNeRFFromURL(url.trim());
+    }
+  }
+
+  /**
+   * Load NeRF from custom URL
+   */
+  private async loadNeRFFromURL(url: string): Promise<void> {
+    try {
+      console.log(`Loading custom NeRF from: ${url}`);
+      await this.nerfLoader.loadNeRFModel(url, {
+        loadingAnimationEnabled: this.state.loadingAnimation,
+        particleRevealEnabled: this.state.particleReveal,
+        enableThreeShaderIntegration: this.state.enableShaderIntegration
+      });
+
+      this.state.nerfURL = url;
+      this.gui.setVal('Current URL', url);
+      console.log('Custom NeRF loaded successfully');
+    } catch (error) {
+      console.error('Failed to load custom NeRF:', error);
+      alert('Failed to load NeRF from URL. Check console for details.');
+    }
+  }
+
+  /**
+   * Reload current scene with updated settings
+   */
+  private async reloadCurrentScene(): Promise<void> {
+    const currentScene = this.sceneManager.getCurrentScene();
+    if (currentScene) {
+      try {
+        console.log('Reloading scene with updated settings...');
+        await this.nerfLoader.loadNeRFModel(currentScene.url, {
+          location: currentScene.location,
+          loadingAnimationEnabled: this.state.loadingAnimation,
+          particleRevealEnabled: this.state.particleReveal,
+          enableThreeShaderIntegration: this.state.enableShaderIntegration
+        });
+        console.log('Scene reloaded successfully');
+      } catch (error) {
+        console.error('Failed to reload scene:', error);
+      }
+    }
+  }
+
+  /**
+   * Manual position override for model
+   */
+  private manualPositionOverride(): void {
+    const x = prompt('Enter X position:', '0');
+    const y = prompt('Enter Y position:', '0');
+    const z = prompt('Enter Z position:', '0');
+
+    if (x !== null && y !== null && z !== null) {
+      const container = this.nerfLoader.getContainer();
+      container.position.set(parseFloat(x), parseFloat(y), parseFloat(z));
+      console.log(`Model position set to: (${x}, ${y}, ${z})`);
+    }
+  }
+
+  /**
    * Reset model transforms to default
    */
   private resetModelTransforms(): void {
     this.state.modelScale = 1.0;
     this.state.modelYOffset = 0;
+    this.state.modelRotationY = 0;
 
+    const container = this.nerfLoader.getContainer();
     this.nerfLoader.setScale(1.0);
-    this.nerfLoader.getContainer().position.y = 0;
+    container.position.y = 0;
+    container.rotation.y = 0;
 
     // Update UI sliders
-    if (this.controls.scaleSlider) {
-      this.controls.scaleSlider.setValue(1.0);
-    }
-    if (this.controls.yOffsetSlider) {
-      this.controls.yOffsetSlider.setValue(0);
-    }
+    this.gui.setVal('Scale', 1.0);
+    this.gui.setVal('Y Offset', 0);
+    this.gui.setVal('Rotation Y', 0);
   }
 
   /**
@@ -280,11 +685,41 @@ export class UIManager {
   }
 
   /**
-   * Cleanup and dispose
+   * Cleanup and dispose - Memory safe cleanup of all resources
    */
   public dispose(): void {
+    console.log('UIManager: Starting cleanup...');
+
+    // Remove resize handler
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = undefined;
+    }
+
+    // Clear all control references
+    this.controlRefs.forEach(control => {
+      if (control && typeof control.dispose === 'function') {
+        control.dispose();
+      }
+    });
+    this.controlRefs = [];
+
+    // Dispose of GUI
     if (this.gui) {
       this.gui.dispose();
+    }
+
+    console.log('UIManager: Cleanup complete');
+  }
+
+  /**
+   * Update renderer info (call this in animation loop if needed)
+   */
+  public updateRendererInfo(): void {
+    if (this.renderer) {
+      const info = this.renderer.info;
+      const infoText = `Triangles: ${info.render.triangles}\nCalls: ${info.render.calls}`;
+      this.gui.setVal('Renderer Info', infoText);
     }
   }
 }

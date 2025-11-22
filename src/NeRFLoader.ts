@@ -217,10 +217,10 @@ export class NeRFLoader {
     if (!this.currentModel) return;
 
     // Apply clipping planes to model materials
-    this.currentModel.traverse((child) => {
+    this.currentModel.traverse((child: THREE.Object3D) => {
       if (child instanceof THREE.Mesh && child.material) {
         const materials = Array.isArray(child.material) ? child.material : [child.material];
-        materials.forEach((mat) => {
+        materials.forEach((mat: THREE.Material | THREE.Material[]) => {
           if (mat instanceof THREE.Material) {
             mat.clippingPlanes = this.clipPlanes;
             mat.clipIntersection = false;
@@ -233,21 +233,49 @@ export class NeRFLoader {
 
   /**
    * Disposes of the currently loaded model
+   * Ensures comprehensive cleanup of GPU resources to prevent memory leaks
    */
   public disposeCurrentModel(): void {
     if (this.currentModel) {
-      console.log('Disposing current NeRF model');
+      console.log('Disposing current NeRF model...');
+
+      // Traverse and dispose of all materials, geometries, and textures
+      this.currentModel.traverse((child: THREE.Object3D) => {
+        if (child instanceof THREE.Mesh) {
+          // Dispose geometry
+          if (child.geometry) {
+            child.geometry.dispose();
+          }
+
+          // Dispose materials
+          if (child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((material: THREE.Material) => {
+              // Dispose textures
+              Object.keys(material).forEach((key) => {
+                const value = (material as any)[key];
+                if (value && value instanceof THREE.Texture) {
+                  value.dispose();
+                }
+              });
+
+              // Dispose material
+              material.dispose();
+            });
+          }
+        }
+      });
 
       // Remove from container
       this.modelContainer.remove(this.currentModel);
 
-      // Dispose of the Luma splat
-      // Note: LumaSplatsThree should have its own dispose method
+      // Dispose of the Luma splat using its own dispose method if available
       if (typeof (this.currentModel as any).dispose === 'function') {
         (this.currentModel as any).dispose();
       }
 
       this.currentModel = null;
+      console.log('NeRF model disposed successfully');
     }
   }
 
@@ -295,9 +323,23 @@ export class NeRFLoader {
 
   /**
    * Cleanup all resources
+   * Call this when shutting down or resetting the entire scene
    */
   public dispose(): void {
+    console.log('NeRFLoader: Starting full cleanup...');
+
+    // Dispose current model
     this.disposeCurrentModel();
+
+    // Remove container from scene
     this.scene.remove(this.modelContainer);
+
+    // Clear clipping planes array
+    this.clipPlanes.length = 0;
+
+    // Reset geospatial manager
+    this.geoManager.reset();
+
+    console.log('NeRFLoader: Cleanup complete');
   }
 }
