@@ -70,7 +70,9 @@ export const NARRATIVE_SCENES: SceneMetadata[] = [
   { id: "mercado-de-barcelo", title: "Mercado de Barcelo", url: "https://lumalabs.ai/capture/786aaf8b-ff56-44cd-8901-93da42d53e9e", location: { latitude: 40.4155, longitude: -3.7074, altitude: 650 }, description: "A beautiful capture of Mercado de Barcelo", captureDate: "2024-03-15", tags: ["nature", "urban"] },
   { id: "night-park", title: "Night Park", url: "https://lumalabs.ai/capture/18a142f1-e81f-49d2-a8b5-55ca3fb4ed98", location: { latitude: 40.4155, longitude: -3.7074, altitude: 650 }, description: "A beautiful capture of Night Park", captureDate: "2024-03-15", tags: ["nature", "urban"] },
   { id: "cow003", title: "Cow003", url: "https://lumalabs.ai/capture/6113c57b-1fd8-4627-8b76-0538613fe64e", location: { latitude: 40.4155, longitude: -3.7074, altitude: 650 }, description: "A beautiful capture of Cow003", captureDate: "2024-03-15", tags: ["nature", "urban"] },
-  { id: "cow-002", title: "COW-002", url: "https://lumalabs.ai/capture/96294573-08b6-4ee4-ae7a-1c344c78ba27", location: { latitude: 40.4155, longitude: -3.7074, altitude: 650 }, description: "A beautiful capture of COW-002", captureDate: "2024-03-15", tags: ["nature", "urban"] }
+  { id: "cow-002", title: "COW-002", url: "https://lumalabs.ai/capture/96294573-08b6-4ee4-ae7a-1c344c78ba27", location: { latitude: 40.4155, longitude: -3.7074, altitude: 650 }, description: "A beautiful capture of COW-002", captureDate: "2024-03-15", tags: ["nature", "urban"] },
+  { id: "cow-002", title: "COW-002", url: "https://lumalabs.ai/capture/96294573-08b6-4ee4-ae7a-1c344c78ba27", location: { latitude: 40.4155, longitude: -3.7074, altitude: 650 }, description: "A beautiful capture of COW-002", captureDate: "2024-03-15", tags: ["nature", "urban"] },
+  { id: "cow-002", title: "COW-002", url: "https://lumalabs.ai/capture/1d03da7e-8b2c-4a43-9983-1282a9bb23a0", location: { latitude: 40.4155, longitude: -3.7074, altitude: 650 }, description: "A beautiful capture of COW-002", captureDate: "2024-03-15", tags: ["Numa", "urban"] }
 ];
 
 /**
