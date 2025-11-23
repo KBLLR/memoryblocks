@@ -1,4 +1,4 @@
-import { Gui } from 'uil';
+import { Gui, type GuiControl } from 'uil';
 import * as THREE from 'three';
 import { SceneManager } from './SceneManager.js';
 import { PlatformEnvironment } from './PlatformEnvironment.js';
@@ -27,9 +27,19 @@ export interface UIConfig {
   title?: string;
   width?: number;
   left?: string;
+  right?: string;
   top?: string;
+  anchor?: 'left' | 'right';
   camera?: THREE.Camera;
   renderer?: THREE.WebGLRenderer;
+  fogControls?: {
+    enabled: boolean;
+    density: number;
+    color: string;
+    setEnabled: (enabled: boolean) => void;
+    setDensity: (density: number) => void;
+    setColor: (color: string) => void;
+  };
 }
 
 export class UIManager {
@@ -39,6 +49,7 @@ export class UIManager {
   private nerfLoader: NeRFLoader;
   private camera?: THREE.Camera;
   private renderer?: THREE.WebGLRenderer;
+  private fogControls?: UIConfig['fogControls'];
 
   // Control references for cleanup
   private controlRefs: any[] = [];
@@ -50,6 +61,12 @@ export class UIManager {
     infoDisplay?: GuiControl;
     scaleSlider?: GuiControl;
     yOffsetSlider?: GuiControl;
+    rotationY?: GuiControl;
+    currentUrl?: GuiControl;
+    locationInfo?: GuiControl;
+    fovControl?: GuiControl;
+    rendererInfo?: GuiControl;
+    sliceToggle?: GuiControl;
   } = {};
 
   // UI state
@@ -67,6 +84,15 @@ export class UIManager {
     enableShaderIntegration: true,
     semanticMaskForeground: true,
     semanticMaskBackground: true,
+    fogEnabled: false,
+    fogDensity: 0.15,
+    sliceEnabled: false,
+    sliceXNeg: 0,
+    sliceXPos: 0,
+    sliceYNeg: 0,
+    sliceYPos: 0,
+    sliceZNeg: 0,
+    sliceZPos: 0,
   };
 
   constructor(
@@ -80,17 +106,25 @@ export class UIManager {
     this.nerfLoader = nerfLoader;
     this.camera = config.camera;
     this.renderer = config.renderer;
+    this.fogControls = config.fogControls;
 
     const {
       title = 'MemoryBlocks',
       width = this.calculateResponsiveWidth(),
       left = '20px',
-      top = '20px'
+      right = '20px',
+      top = '50%',
+      anchor = 'right'
     } = config;
+
+    const positionCss =
+      anchor === 'right'
+        ? `top:${top}; right:${right}; transform: translateY(-50%);`
+        : `top:${top}; left:${left};`;
 
     // Initialize UIL GUI with responsive width
     this.gui = new Gui({
-      css: 'top:' + top + '; left:' + left + '; width:' + width + 'px;',
+      css: `${positionCss} width:${width}px;`,
       name: title
     });
 
@@ -157,7 +191,7 @@ export class UIManager {
     });
     console.log(`==============================\n`);
 
-    this.gui.add('group', { name: 'Scene Navigation', open: true });
+    this.gui.add('group', { name: 'Scene Navigation', open: false });
 
     // Scene selector dropdown
     this.controls.sceneSelector = this.gui.add('list', {
@@ -206,7 +240,7 @@ export class UIManager {
       this.state.cameraFOV = perspCamera.fov;
 
       // Field of View
-      const fovControl = this.gui.add('slide', {
+      this.controls.fovControl = this.gui.add('slide', {
         name: 'FOV',
         min: 30,
         max: 120,
@@ -218,7 +252,7 @@ export class UIManager {
         perspCamera.fov = value;
         perspCamera.updateProjectionMatrix();
       });
-      this.controlRefs.push(fovControl);
+      this.controlRefs.push(this.controls.fovControl);
     }
 
     // Reset Camera button
@@ -233,13 +267,13 @@ export class UIManager {
     // Renderer Info
     if (this.renderer) {
       const info = this.renderer.info;
-      const rendererInfo = this.gui.add('string', {
+      this.controls.rendererInfo = this.gui.add('string', {
         name: 'Renderer Info',
         value: `Triangles: ${info.render.triangles}\nCalls: ${info.render.calls}`,
         height: 40,
         mode: 'text'
       });
-      this.controlRefs.push(rendererInfo);
+      this.controlRefs.push(this.controls.rendererInfo);
     }
   }
 
@@ -259,6 +293,7 @@ export class UIManager {
       height: 50,
       mode: 'text'
     });
+    this.controls.currentUrl = urlControl;
     this.controlRefs.push(urlControl);
 
     // Custom URL input button
@@ -336,13 +371,13 @@ export class UIManager {
       }
     }
 
-    const geoInfoControl = this.gui.add('string', {
+    this.controls.locationInfo = this.gui.add('string', {
       name: 'Location',
       value: positionInfo,
       height: 80,
       mode: 'text'
     });
-    this.controlRefs.push(geoInfoControl);
+    this.controlRefs.push(this.controls.locationInfo);
 
     // Reset Origin button
     const resetOriginBtn = this.gui.add('button', {
@@ -411,6 +446,96 @@ export class UIManager {
       });
       this.controlRefs.push(shadowControl);
     }
+
+    // Fog controls (from main)
+    if (this.fogControls) {
+      this.state.fogEnabled = this.fogControls.enabled;
+      this.state.fogDensity = this.fogControls.density;
+
+      const fogToggle = this.gui.add('bool', {
+        name: 'Fog',
+        value: this.fogControls.enabled
+      }).onChange((value: boolean) => {
+        this.state.fogEnabled = value;
+        this.fogControls?.setEnabled(value);
+      });
+      this.controlRefs.push(fogToggle);
+
+      const fogDensity = this.gui.add('slide', {
+        name: 'Fog Density',
+        min: 0,
+        max: 0.5,
+        value: this.fogControls.density,
+        precision: 3,
+        step: 0.005
+      }).onChange((value: number) => {
+        this.state.fogDensity = value;
+        this.fogControls?.setDensity(value);
+      });
+      this.controlRefs.push(fogDensity);
+
+      const fogColor = this.gui.add('color', {
+        name: 'Fog Color',
+        value: this.fogControls.color
+      }).onChange((value: string) => {
+        this.fogControls?.setColor(value);
+      });
+      this.controlRefs.push(fogColor);
+    }
+
+    // Splat slice toggle for cross-section debugging
+    const sliceToggle = this.gui.add('bool', {
+      name: 'Slice Mode',
+      value: false
+    }).onChange((value: boolean) => {
+      this.state.sliceEnabled = value;
+      if (!value) {
+        this.nerfLoader.setSlicePlane(false);
+      } else {
+        this.applySlices();
+      }
+    });
+    this.controls.sliceToggle = sliceToggle;
+    this.controlRefs.push(sliceToggle);
+
+    type SliceKey =
+      | 'sliceXNeg'
+      | 'sliceXPos'
+      | 'sliceYNeg'
+      | 'sliceYPos'
+      | 'sliceZNeg'
+      | 'sliceZPos';
+
+    const makeSliceSlider = (label: string, key: SliceKey, apply: () => void) => {
+      const slider = this.gui.add('slide', {
+        name: label,
+        min: -15,
+        max: 15,
+        value: this.state[key],
+        precision: 2,
+        step: 0.1
+      }).onChange((value: number) => {
+        this.state[key] = value;
+        apply();
+      });
+      this.controlRefs.push(slider);
+    };
+
+    makeSliceSlider('Slice -X', 'sliceXNeg', () => this.applySlices());
+    makeSliceSlider('Slice +X', 'sliceXPos', () => this.applySlices());
+    makeSliceSlider('Slice -Y', 'sliceYNeg', () => this.applySlices());
+    makeSliceSlider('Slice +Y', 'sliceYPos', () => this.applySlices());
+    makeSliceSlider('Slice -Z', 'sliceZNeg', () => this.applySlices());
+    makeSliceSlider('Slice +Z', 'sliceZPos', () => this.applySlices());
+
+    // Clip box helper (diorama bounds visualization)
+    const clipHelperControl = this.gui.add('bool', {
+      name: 'Show Clip Box',
+      value: false
+    }).onChange((value: boolean) => {
+      this.nerfLoader.setClipHelperVisible(value);
+    });
+    this.controlRefs.push(clipHelperControl);
   }
 
   /**
@@ -420,7 +545,7 @@ export class UIManager {
     this.gui.add('group', { name: 'Model Adjustments', open: false });
 
     // Scale slider
-    const scaleControl = this.gui.add('slide', {
+    this.controls.scaleSlider = this.gui.add('slide', {
       name: 'Scale',
       min: 0.1,
       max: 5.0,
@@ -431,10 +556,10 @@ export class UIManager {
       this.state.modelScale = value;
       this.nerfLoader.setScale(value);
     });
-    this.controlRefs.push(scaleControl);
+    this.controlRefs.push(this.controls.scaleSlider);
 
     // Vertical offset slider
-    const yOffsetControl = this.gui.add('slide', {
+    this.controls.yOffsetSlider = this.gui.add('slide', {
       name: 'Y Offset',
       min: -20,
       max: 20,
@@ -447,10 +572,10 @@ export class UIManager {
       container.position.y += delta;
       this.state.modelYOffset = value;
     });
-    this.controlRefs.push(yOffsetControl);
+    this.controlRefs.push(this.controls.yOffsetSlider);
 
     // Rotation slider
-    const rotationControl = this.gui.add('slide', {
+    this.controls.rotationY = this.gui.add('slide', {
       name: 'Rotation Y',
       min: -180,
       max: 180,
@@ -462,7 +587,7 @@ export class UIManager {
       const container = this.nerfLoader.getContainer();
       container.rotation.y = (value * Math.PI) / 180;
     });
-    this.controlRefs.push(rotationControl);
+    this.controlRefs.push(this.controls.rotationY);
 
     // Reset button
     const resetBtn = this.gui.add('button', {
@@ -521,11 +646,13 @@ export class UIManager {
     const current = this.sceneManager.getCurrentScene();
     if (current && this.controls.infoDisplay) {
       const info = `${current.title}\n\n${current.description || 'No description'}`;
-      this.gui.setVal('Info', info);
+      this.controls.infoDisplay.setValue(info);
 
       // Also update NeRF URL display
       this.state.nerfURL = current.url;
-      this.gui.setVal('Current URL', current.url);
+      if (this.controls.currentUrl) {
+        this.controls.currentUrl.setValue(current.url);
+      }
 
       // Update geospatial info
       this.updateGeospatialInfo();
@@ -568,7 +695,9 @@ export class UIManager {
       }
     }
 
-    this.gui.setVal('Location', positionInfo);
+    if (this.controls.locationInfo) {
+      this.controls.locationInfo.setValue(positionInfo);
+    }
   }
 
   /**
@@ -584,7 +713,9 @@ export class UIManager {
         perspCamera.fov = 75;
         perspCamera.updateProjectionMatrix();
         this.state.cameraFOV = 75;
-        this.gui.setVal('FOV', 75);
+        if (this.controls.fovControl) {
+          this.controls.fovControl.setValue(75);
+        }
       }
 
       console.log('Camera reset to default position');
@@ -614,7 +745,9 @@ export class UIManager {
       });
 
       this.state.nerfURL = url;
-      this.gui.setVal('Current URL', url);
+      if (this.controls.currentUrl) {
+        this.controls.currentUrl.setValue(url);
+      }
       console.log('Custom NeRF loaded successfully');
     } catch (error) {
       console.error('Failed to load custom NeRF:', error);
@@ -672,9 +805,9 @@ export class UIManager {
     container.rotation.y = 0;
 
     // Update UI sliders
-    this.gui.setVal('Scale', 1.0);
-    this.gui.setVal('Y Offset', 0);
-    this.gui.setVal('Rotation Y', 0);
+    this.controls.scaleSlider?.setValue(1.0);
+    this.controls.yOffsetSlider?.setValue(0);
+    this.controls.rotationY?.setValue(0);
   }
 
   /**
@@ -682,6 +815,38 @@ export class UIManager {
    */
   public getGui(): Gui {
     return this.gui;
+  }
+
+  /**
+   * Synchronize UI state when scenes are changed externally (e.g., timeline HUD)
+   */
+  public syncToScene(index: number): void {
+    this.state.currentScene = index;
+    this.updateSceneSelector();
+    this.updateSceneInfo();
+    // Reapply slice planes/state when scenes change
+    if (this.state.sliceEnabled) {
+      this.applySlices();
+      this.controls.sliceToggle?.setValue(true);
+    }
+  }
+
+  /**
+   * Apply current slice state to the loader
+   */
+  private applySlices(): void {
+    if (!this.state.sliceEnabled) {
+      this.nerfLoader.setSlicePlane(false);
+      return;
+    }
+    this.nerfLoader.setSlicePlanes({
+      xNeg: this.state.sliceXNeg,
+      xPos: this.state.sliceXPos,
+      yNeg: this.state.sliceYNeg,
+      yPos: this.state.sliceYPos,
+      zNeg: this.state.sliceZNeg,
+      zPos: this.state.sliceZPos,
+    });
   }
 
   /**
@@ -719,7 +884,7 @@ export class UIManager {
     if (this.renderer) {
       const info = this.renderer.info;
       const infoText = `Triangles: ${info.render.triangles}\nCalls: ${info.render.calls}`;
-      this.gui.setVal('Renderer Info', infoText);
+      this.controls.rendererInfo?.setValue(infoText);
     }
   }
 }

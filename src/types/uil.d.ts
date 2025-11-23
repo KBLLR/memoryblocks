@@ -55,6 +55,13 @@ declare module 'uil' {
      * @param options - Control-specific options
      */
     add(type: string, options?: ControlOptions): GuiControl;
+    /**
+     * Add a control bound to an object's property (dat.GUI style)
+     * @param object - Target object containing the property
+     * @param property - Property name on the target object
+     * @param options - Control-specific options
+     */
+    add(object: Record<string, any>, property: string, options?: ControlOptions): GuiControl;
 
     /**
      * Set the value of a named control

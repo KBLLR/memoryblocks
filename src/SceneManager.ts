@@ -12,6 +12,7 @@ export class SceneManager {
   private nerfLoader: NeRFLoader;
   private currentSceneIndex: number = -1;
   private currentScene: SceneMetadata | null = null;
+  private onSceneChanged?: (scene: SceneMetadata, index: number) => void;
 
   constructor(nerfLoader: NeRFLoader) {
     this.nerfLoader = nerfLoader;
@@ -79,6 +80,10 @@ export class SceneManager {
       this.currentSceneIndex = index;
 
       console.log(`Scene loaded successfully [${index + 1}/${NARRATIVE_SCENES.length}]`);
+
+      if (this.onSceneChanged) {
+        this.onSceneChanged(scene, index);
+      }
     } catch (error) {
       console.error(`Failed to load scene "${scene.title}":`, error);
       throw error;
@@ -122,5 +127,12 @@ export class SceneManager {
     } else {
       return getSceneByIndex(idOrIndex);
     }
+  }
+
+  /**
+   * Register a callback to be notified when a scene loads successfully
+   */
+  public setSceneChangedCallback(callback: (scene: SceneMetadata, index: number) => void): void {
+    this.onSceneChanged = callback;
   }
 }

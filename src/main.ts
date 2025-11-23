@@ -5,6 +5,11 @@ import { NeRFLoader } from './NeRFLoader.js';
 import { SceneManager } from './SceneManager.js';
 import { UIManager } from './UIManager.js';
 import { InWorldGUIManager } from './InWorldGUIManager.js';
+import { type SceneMetadata } from './scenes.js';
+
+// Feature toggles
+const ENABLE_DIORAMA_CLIPPING = false; // set true to enforce cube clipping
+const ENABLE_LUMA_FOG = true;
 
 /**
  * MemoryBlocks - Stage 7: In-World 3D GUI Integration
@@ -13,6 +18,27 @@ import { InWorldGUIManager } from './InWorldGUIManager.js';
 
 // Scene setup
 const scene = new THREE.Scene();
+const defaultBackground = new THREE.Color(0x000000);
+let fogColor = new THREE.Color(0xe0e1ff).convertLinearToSRGB();
+let fogDensity = 0.15;
+let fogEnabled = ENABLE_LUMA_FOG;
+
+const applyFogState = () => {
+  if (fogEnabled) {
+    if (!scene.fog) {
+      scene.fog = new THREE.FogExp2(fogColor, fogDensity);
+    } else {
+      (scene.fog as THREE.FogExp2).color.copy(fogColor);
+      (scene.fog as THREE.FogExp2).density = fogDensity;
+    }
+    scene.background = fogColor;
+  } else {
+    scene.fog = null;
+    scene.background = defaultBackground;
+  }
+};
+
+applyFogState();
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(
@@ -34,7 +60,7 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // Enable clipping for platform boundaries
-renderer.localClippingEnabled = true;
+renderer.localClippingEnabled = ENABLE_DIORAMA_CLIPPING;
 
 const appElement = document.getElementById('app');
 if (appElement) {
@@ -49,8 +75,8 @@ controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent camera going below groun
 controls.target.set(0, 0, 0);
 
 // Platform configuration
-const PLATFORM_SIZE = 60;
-const PLATFORM_HEIGHT = 1.5;
+const PLATFORM_SIZE = 30;
+const PLATFORM_HEIGHT = 1.2;
 
 // Initialize platform environment
 const platformEnvironment = new PlatformEnvironment(scene, {
@@ -69,15 +95,42 @@ const nerfLoader = new NeRFLoader(scene, {
   height: PLATFORM_HEIGHT,
   surfaceY: 0  // Platform top surface is at Y=0
 });
+nerfLoader.setClippingEnabled(ENABLE_DIORAMA_CLIPPING);
 const sceneManager = new SceneManager(nerfLoader);
+
+// HUD elements (non-UIL overlay)
+const hudTitle = document.getElementById('hud-title');
+const hudSubtitle = document.getElementById('hud-subtitle');
+const hudEyebrow = document.getElementById('hud-eyebrow');
+const timelineTrack = document.getElementById('timeline-track');
+let timelineButtons: HTMLButtonElement[] = [];
+let isLoadingScene = false;
 
 // Initialize UI controls with camera and renderer for enhanced controls
 const uiManager = new UIManager(sceneManager, platformEnvironment, nerfLoader, {
   title: 'MemoryBlocks Controls',
-  left: '20px',
-  top: '20px',
+  anchor: 'right',
+  right: '20px',
+  top: '50%',
   camera: camera,
-  renderer: renderer
+  renderer: renderer,
+  fogControls: {
+    enabled: fogEnabled,
+    density: fogDensity,
+    color: `#${fogColor.getHexString()}`,
+    setEnabled: (enabled: boolean) => {
+      fogEnabled = enabled;
+      applyFogState();
+    },
+    setDensity: (density: number) => {
+      fogDensity = density;
+      applyFogState();
+    },
+    setColor: (color: string) => {
+      fogColor = new THREE.Color(color);
+      applyFogState();
+    }
+  }
 });
 
 // Initialize In-World 3D GUI (optional feature)
@@ -97,6 +150,93 @@ const inWorldGUI = new InWorldGUIManager(
     enableInteraction: true,
   }
 );
+
+/**
+ * HUD helpers for title/subtitle and timeline navigation
+ */
+function updateHud(scene: SceneMetadata, index: number): void {
+  const formatDate = (value?: string) => {
+    if (!value) return 'Unknown date';
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? value : date.toLocaleDateString();
+  };
+
+  if (hudTitle) {
+    hudTitle.textContent = scene.title || 'Untitled scene';
+  }
+  if (hudSubtitle) {
+    const meta =
+      scene.description ||
+      scene.captureDate ||
+      (scene.tags && scene.tags.length > 0 ? scene.tags.join(' • ') : '') ||
+      scene.id;
+    hudSubtitle.textContent = meta;
+  }
+  if (hudEyebrow) {
+    const dateText = formatDate(scene.captureDate);
+    hudEyebrow.textContent = `${scene.id} • ${dateText}`;
+  }
+
+  timelineButtons.forEach((btn, i) => {
+    btn.classList.toggle('active', i === index);
+  });
+}
+
+async function goToScene(index: number): Promise<void> {
+  if (isLoadingScene) return;
+  if (sceneManager.getCurrentSceneIndex() === index) return;
+  isLoadingScene = true;
+  try {
+    await sceneManager.loadSceneByIndex(index);
+  } catch (error) {
+    console.error('Failed to change scene via timeline:', error);
+  } finally {
+    isLoadingScene = false;
+  }
+}
+
+function buildTimeline(): void {
+  if (!timelineTrack) return;
+
+  const scenes = sceneManager.getAllScenes();
+  timelineTrack.innerHTML = '';
+  timelineButtons = scenes.map((scene, index) => {
+    const btn = document.createElement('button');
+    btn.className = 'timeline-item';
+    btn.type = 'button';
+    const title = document.createElement('span');
+    title.className = 'timeline-item__title';
+    title.textContent = scene.title;
+
+    const meta = document.createElement('span');
+    meta.className = 'timeline-item__meta';
+    const date = scene.captureDate ? new Date(scene.captureDate) : null;
+    const dateText = date && !isNaN(date.getTime()) ? date.toLocaleDateString() : 'No date';
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'timeline-item__date';
+    dateSpan.textContent = dateText;
+    const descSpan = document.createElement('span');
+    descSpan.textContent = scene.description || scene.id;
+    meta.appendChild(dateSpan);
+    meta.appendChild(descSpan);
+
+    btn.appendChild(title);
+    btn.appendChild(meta);
+    btn.addEventListener('click', () => {
+      goToScene(index);
+    });
+    timelineTrack.appendChild(btn);
+    return btn;
+  });
+}
+
+// Wire HUD updates and build timeline immediately
+sceneManager.setSceneChangedCallback((scene, index) => {
+  updateHud(scene, index);
+  uiManager.syncToScene(index);
+});
+buildTimeline();
+goToScene(0);
 
 /**
  * Helper functions (also available via UI)

@@ -29,10 +29,155 @@
       width: 100%;
       height: 100%;
     }
+
+    /* Overlay UI */
+    .hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      color: #f5f7fb;
+    }
+
+    .hud__header {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      padding: 10px 16px;
+      background: linear-gradient(120deg, rgba(10, 10, 10, 0.55), rgba(30, 30, 30, 0.35));
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+      min-width: 240px;
+    }
+
+    .hud__eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9fb7c9;
+      opacity: 0.8;
+    }
+
+    .hud__title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .hud__subtitle {
+      margin-top: 4px;
+      font-size: 13px;
+      color: #c9d4e0;
+      opacity: 0.9;
+    }
+
+    .hud__timeline {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(1080px, 96vw);
+      pointer-events: none;
+    }
+
+    .timeline-track {
+      display: flex;
+      gap: 8px;
+      padding: 10px;
+      background: linear-gradient(120deg, rgba(12, 16, 24, 0.7), rgba(28, 32, 40, 0.6));
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      pointer-events: auto;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.4) rgba(255, 255, 255, 0.08);
+      align-items: stretch;
+      justify-content: center;
+    }
+
+    .timeline-track::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .timeline-track::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.35);
+      border-radius: 10px;
+    }
+
+    .timeline-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.03);
+      color: inherit;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      min-height: 64px;
+      outline: none;
+      appearance: none;
+      text-align: left;
+      min-width: 140px;
+    }
+
+    .timeline-item:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.06);
+      transform: translateY(-1px);
+    }
+
+    .timeline-item.active {
+      border-color: rgba(123, 212, 184, 0.8);
+      background: rgba(123, 212, 184, 0.12);
+      box-shadow: 0 0 0 1px rgba(123, 212, 184, 0.3);
+    }
+
+    .timeline-item__title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    .timeline-item__meta {
+      font-size: 11px;
+      color: #b8c5d8;
+      opacity: 0.9;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .timeline-item__date {
+      font-variant-numeric: tabular-nums;
+      color: #96b2c6;
+      opacity: 0.85;
+    }
   </style>
 </head>
 <body>
   <div id="app"></div>
+  <div class="hud">
+    <div class="hud__header">
+      <div class="hud__eyebrow" id="hud-eyebrow">Loading…</div>
+      <div class="hud__title" id="hud-title">Loading scene...</div>
+      <div class="hud__subtitle" id="hud-subtitle">Preparing narrative</div>
+    </div>
+    <div class="hud__timeline">
+      <div class="timeline-track" id="timeline-track"></div>
+    </div>
+  </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
